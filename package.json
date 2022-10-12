@@ -1,0 +1,30 @@
+{
+  "name": "github-csv-stats",
+  "version": "1.0.0",
+  "description": "Github stats to CSV",
+  "main": "bin/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bartlomiej-blockbites/github-csv-stats"
+  },
+  "keywords": [
+    "github",
+    "node"
+  ],
+  "author": "alejandro-blockbites",
+  "license": "Apache License 2.0",
+  "bin": {
+    "github-stats": "./bin/index.js"
+  },
+  "bugs": {
+    "url": "https://github.com/bartlomiej-blockbites/github-csv-stats/issues"
+  },
+  "homepage": "https://github.com/bartlomiej-blockbites/github-csv-stats#readme",
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "octokit": "^2.0.7"
+  }
+}
