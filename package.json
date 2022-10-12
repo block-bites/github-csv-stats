@@ -17,7 +17,7 @@
   "author": "alejandro-blockbites",
   "license": "Apache License 2.0",
   "bin": {
-    "github-stats": "./bin/index.js"
+    "github-stats": "node ./bin/index.js"
   },
   "bugs": {
     "url": "https://github.com/bartlomiej-blockbites/github-csv-stats/issues"
@@ -25,6 +25,7 @@
   "homepage": "https://github.com/bartlomiej-blockbites/github-csv-stats#readme",
   "dependencies": {
     "dotenv": "^16.0.3",
-    "octokit": "^2.0.7"
+    "octokit": "^2.0.7",
+    "yargs": "^17.6.0"
   }
 }
