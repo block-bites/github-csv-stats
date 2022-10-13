@@ -4,12 +4,22 @@ const dotenv = require("dotenv");
 const yargs = require("yargs");
 const fs = require("fs");
 
-const options = yargs.usage("Usage: -r <repo URL>").option("r", {
-  alias: "repo",
-  describe: "Repo URL to get Stats",
-  type: "string",
-  demandOption: true,
-}).argv;
+const options = yargs
+  .usage(
+    "Usage: -r <URLs of all the repositories to analyse. Comma separated.>"
+  )
+  .option("r", {
+    alias: "repo",
+    describe: "Repo URL to get Stats",
+    type: "string",
+    demandOption: true,
+  })
+  .option("v", {
+    alias: "verbose",
+    describe: "Show Repo info while processing",
+    type: "boolean",
+    demandOption: false,
+  }).argv;
 
 // Configuration the .env file
 dotenv.config();
@@ -44,6 +54,7 @@ async function getRepo(repo) {
 
 //Get args
 const repos = options.repo.split(",");
+
 const csv = [
   "pr",
   "forks",
@@ -56,53 +67,56 @@ const csv = [
   "updated",
   "pushed",
 ].join(",");
-fs.writeFileSync(Date.now().toString() + ".csv", csv);
+const fileName = Date.now().toString() + ".csv";
+fs.writeFileSync(fileName, csv);
 repos.forEach((repoListed) => {
   const repo = repoListed.split("https://github.com/")[1];
-  //Number of: pr, forks, stars, closed/open issues, dominant language, license,last commit date
   getRepo(repo)
     .then(([repoInfo, repoContributors, pullsInfo, branchesInfo]) => {
-      console.log("Repository: " + repoInfo.name);
-      console.log(
-        "Created: " +
-          repoInfo.created_at.split("T")[0] +
-          " at " +
-          repoInfo.created_at.split("T")[1].split("Z")[0]
-      );
-      console.log(
-        "Updated: " +
-          repoInfo.updated_at.split("T")[0] +
-          " at " +
-          repoInfo.updated_at.split("T")[1].split("Z")[0]
-      );
-      console.log(
-        "Pushed: " +
-          repoInfo.pushed_at.split("T")[0] +
-          " at " +
-          repoInfo.pushed_at.split("T")[1].split("Z")[0]
-      );
-      console.log("Dominant Language: " + repoInfo.language);
+      if (options.verbose) {
+        console.log("Repository: " + repoInfo.name);
+        console.log(
+          "Created: " +
+            repoInfo.created_at.split("T")[0] +
+            " at " +
+            repoInfo.created_at.split("T")[1].split("Z")[0]
+        );
+        console.log(
+          "Updated: " +
+            repoInfo.updated_at.split("T")[0] +
+            " at " +
+            repoInfo.updated_at.split("T")[1].split("Z")[0]
+        );
+        console.log(
+          "Pushed: " +
+            repoInfo.pushed_at.split("T")[0] +
+            " at " +
+            repoInfo.pushed_at.split("T")[1].split("Z")[0]
+        );
+        console.log("Dominant Language: " + repoInfo.language);
+
+        if (repoInfo.license !== null) {
+          console.log("License: " + repoInfo.license.name);
+        } else {
+          console.log("No License");
+        }
+        console.log("Forks: " + repoInfo.forks);
+        console.log("Stars: " + repoInfo.stargazers_count);
+        //Separate PR from Issues
+        console.log("Open PR: " + pullsInfo.length);
+        console.log(
+          "Open Issues: " + (repoInfo.open_issues - pullsInfo.length)
+        );
+        //Show contributors
+        console.log("Contributors: " + repoContributors.length);
+        //Show branches
+        console.log("Branches: " + branchesInfo.length);
+      }
+      //create csv
       let licenseName = "No License";
       if (repoInfo.license !== null) {
         licenseName = repoInfo.license.name;
-        console.log("License: " + repoInfo.license.name);
-      } else {
-        console.log("No License");
       }
-
-      console.log("Forks: " + repoInfo.forks);
-      console.log("Stars: " + repoInfo.stargazers_count);
-
-      //Separate PR from Issues
-
-      console.log("Open PR: " + pullsInfo.length);
-      console.log("Open Issues: " + (repoInfo.open_issues - pullsInfo.length));
-      //Show contributors
-      console.log("Contributors: " + repoContributors.length);
-      //Show branches
-      console.log("Branches: " + branchesInfo.length);
-
-      //create csv
       const row =
         "\r\n" +
         [
@@ -117,7 +131,7 @@ repos.forEach((repoListed) => {
           repoInfo.updated_at.split("T")[0],
           repoInfo.pushed_at.split("T")[0],
         ].join(",");
-      fs.appendFileSync("demoA.csv", row);
+      fs.appendFileSync(fileName, row);
     })
 
     .catch((error) => {
