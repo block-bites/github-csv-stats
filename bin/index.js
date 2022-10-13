@@ -2,6 +2,7 @@
 const { Octokit } = require("octokit");
 const dotenv = require("dotenv");
 const yargs = require("yargs");
+const fs = require("fs");
 
 const options = yargs.usage("Usage: -r <repo URL>").option("r", {
   alias: "repo",
@@ -20,109 +21,106 @@ const octokit = new Octokit({
 });
 
 async function getRepo(repo) {
-  const repoInfo = await octokit.request("GET /repos/" + repo);
-  if (repoInfo.status !== 200) {
-    const message = `An error has occured: ${repoInfo.status}`;
-    throw new Error(message);
+  const [responseInfo, responseContributors, responsePulls, responseBranches] =
+    await Promise.all([
+      octokit.request("GET /repos/" + repo),
+      octokit.request("GET /repos/" + repo + "/stats/contributors"),
+      octokit.request("GET /repos/" + repo + "/pulls?state=open&per_page=100"),
+      octokit.request("GET /repos/" + repo + "/branches?per_page=100"),
+    ]);
+  if (
+    responseInfo.status === 200 &&
+    responseContributors.status === 200 &&
+    responsePulls.status === 200 &&
+    responseBranches.status === 200
+  ) {
+    const repoInfo = await responseInfo.data;
+    const repoContributors = await responseContributors.data;
+    const pullsInfo = await responsePulls.data;
+    const branchesInfo = await responseBranches.data;
+    return [repoInfo, repoContributors, pullsInfo, branchesInfo];
   }
-  return repoInfo.data;
-}
-
-async function getContributors(repo) {
-  const repoContributors = await octokit.request(
-    "GET /repos/" + repo + "/stats/contributors"
-  );
-  if (repoContributors.status !== 200) {
-    const message = `An error has occured: ${repoContributors.status}`;
-    throw new Error(message);
-  }
-  return repoContributors.data;
-}
-
-async function getPulls(repo) {
-  const pullsInfo = await octokit.request(
-    "GET /repos/" + repo + "/pulls?state=open&per_page=100"
-  );
-  if (pullsInfo.status !== 200) {
-    const message = `An error has occured: ${pullsInfo.status}`;
-    throw new Error(message);
-  }
-  return pullsInfo.data;
-}
-
-async function getBranches(repo) {
-  const branchesInfo = await octokit.request(
-    "GET /repos/" + repo + "/branches?per_page=100"
-  );
-  if (branchesInfo.status !== 200) {
-    const message = `An error has occured: ${branchesInfo.status}`;
-    throw new Error(message);
-  }
-  return branchesInfo.data;
 }
 
 //Get args
 const repos = options.repo.split(",");
+const csv = [
+  "pr",
+  "forks",
+  "stars",
+  "open_issues",
+  "language",
+  "license",
+  "constributors",
+  "created",
+  "updated",
+  "pushed",
+].join(",");
+fs.writeFileSync(Date.now().toString() + ".csv", csv);
 repos.forEach((repoListed) => {
   const repo = repoListed.split("https://github.com/")[1];
   //Number of: pr, forks, stars, closed/open issues, dominant language, license,last commit date
   getRepo(repo)
-    .then(function (result) {
-      console.log("Repository: " + result.name);
+    .then(([repoInfo, repoContributors, pullsInfo, branchesInfo]) => {
+      console.log("Repository: " + repoInfo.name);
       console.log(
         "Created: " +
-          result.created_at.split("T")[0] +
+          repoInfo.created_at.split("T")[0] +
           " at " +
-          result.created_at.split("T")[1].split("Z")[0]
+          repoInfo.created_at.split("T")[1].split("Z")[0]
       );
       console.log(
         "Updated: " +
-          result.updated_at.split("T")[0] +
+          repoInfo.updated_at.split("T")[0] +
           " at " +
-          result.updated_at.split("T")[1].split("Z")[0]
+          repoInfo.updated_at.split("T")[1].split("Z")[0]
       );
       console.log(
         "Pushed: " +
-          result.pushed_at.split("T")[0] +
+          repoInfo.pushed_at.split("T")[0] +
           " at " +
-          result.pushed_at.split("T")[1].split("Z")[0]
+          repoInfo.pushed_at.split("T")[1].split("Z")[0]
       );
-      console.log("Dominant Language: " + result.language);
-      if (result.license !== null) {
-        console.log("License: " + result.license.name);
+      console.log("Dominant Language: " + repoInfo.language);
+      let licenseName = "No License";
+      if (repoInfo.license !== null) {
+        licenseName = repoInfo.license.name;
+        console.log("License: " + repoInfo.license.name);
       } else {
         console.log("No License");
       }
 
-      console.log("Forks: " + result.forks);
-      console.log("Stars: " + result.stargazers_count);
-      const openIssues = result.open_issues;
+      console.log("Forks: " + repoInfo.forks);
+      console.log("Stars: " + repoInfo.stargazers_count);
 
       //Separate PR from Issues
-      getPulls(repo).then(function (result) {
-        console.log("Open PR: " + result.length);
-        console.log("Open Issues: " + (openIssues - result.length));
-      });
-    })
-    .catch((error) => {
-      console.log(`[FETCHING ERROR]:Not Available: ${error}`);
-    });
 
-  //Show contributors
-  getContributors(repo)
-    .then((result) => {
-      console.log("Contributors: " + result.length);
-    })
-    .catch((error) => {
-      console.log(`[FETCHING ERROR]:Not Available: ${error}`);
-    });
+      console.log("Open PR: " + pullsInfo.length);
+      console.log("Open Issues: " + (repoInfo.open_issues - pullsInfo.length));
+      //Show contributors
+      console.log("Contributors: " + repoContributors.length);
+      //Show branches
+      console.log("Branches: " + branchesInfo.length);
 
-  //Show branches
-  getBranches(repo)
-    .then((result) => {
-      console.log("Branches: " + result.length);
+      //create csv
+      const row =
+        "\r\n" +
+        [
+          pullsInfo.length,
+          repoInfo.forks,
+          repoInfo.stargazers_count,
+          repoInfo.open_issues - pullsInfo.length,
+          repoInfo.language,
+          licenseName,
+          repoContributors.length,
+          repoInfo.created_at.split("T")[0],
+          repoInfo.updated_at.split("T")[0],
+          repoInfo.pushed_at.split("T")[0],
+        ].join(",");
+      fs.appendFileSync("demoA.csv", row);
     })
+
     .catch((error) => {
-      console.log(`[FETCHING ERROR]:Not Available: ${error}`);
+      console.log("[FETCHING ERROR]:Getting stats from: " + repo + error);
     });
 });
