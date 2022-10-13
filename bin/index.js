@@ -63,7 +63,7 @@ const csv = [
   "open_issues",
   "language",
   "license",
-  "constributors",
+  "contributors",
   "created",
   "updated",
   "pushed",
