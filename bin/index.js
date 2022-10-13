@@ -56,6 +56,7 @@ async function getRepo(repo) {
 const repos = options.repo.split(",");
 
 const csv = [
+  "name",
   "pr",
   "forks",
   "stars",
@@ -120,6 +121,7 @@ repos.forEach((repoListed) => {
       const row =
         "\r\n" +
         [
+          repoInfo.name,
           pullsInfo.length,
           repoInfo.forks,
           repoInfo.stargazers_count,
