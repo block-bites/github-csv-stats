@@ -1,2 +1,10 @@
 # github-csv-stats
-Generate csv reports from github repositories
+## Generate csv report from github repositories metrics
+
+## Installation 
+
+`npm install`
+
+## Running
+
+`node . -r <repo URLs. Comma separated>`
