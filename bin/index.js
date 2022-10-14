@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { Octokit } = require("octokit");
+const { Octokit } = require("@octokit/rest");
 const dotenv = require("dotenv");
 const yargs = require("yargs");
 const fs = require("fs");
@@ -30,25 +30,46 @@ const octokit = new Octokit({
   auth: token,
 });
 
-async function getRepo(repo) {
-  const [responseInfo, responseContributors, responsePulls, responseBranches] =
-    await Promise.all([
-      octokit.request("GET /repos/" + repo),
-      octokit.request("GET /repos/" + repo + "/stats/contributors"),
-      octokit.request("GET /repos/" + repo + "/pulls?state=open&per_page=100"),
-      octokit.request("GET /repos/" + repo + "/branches?per_page=100"),
-    ]);
+async function getRepo(ownerRepo) {
+  const owner = ownerRepo.split("/")[0];
+  const repo = ownerRepo.split("/")[1];
+  const [
+    responseInfo,
+    responseContributors,
+    responsePulls,
+    responseBranches,
+    responseIssueC,
+    responsePullC,
+  ] = await Promise.all([
+    octokit.rest.repos.get({ owner, repo }),
+    octokit.rest.repos.listContributors({ owner, repo, per_page: 100 }),
+    octokit.rest.pulls.list({ owner, repo, per_page: 100 }),
+    octokit.rest.repos.listBranches({ owner, repo, per_page: 100 }),
+    octokit.rest.search.issuesAndPullRequests({
+      q: 'is:issue+repo:"' + ownerRepo + '"+is:closed',
+      per_page: 1,
+    }),
+    octokit.rest.search.issuesAndPullRequests({
+      q: 'is:pr+repo:"' + ownerRepo + '"+is:closed',
+      per_page: 1,
+    }),
+  ]);
   if (
     responseInfo.status === 200 &&
     responseContributors.status === 200 &&
     responsePulls.status === 200 &&
-    responseBranches.status === 200
+    responseBranches.status === 200 &&
+    responseIssueC.status === 200 &&
+    responsePullC.status === 200
   ) {
-    const repoInfo = await responseInfo.data;
-    const repoContributors = await responseContributors.data;
-    const pullsInfo = await responsePulls.data;
-    const branchesInfo = await responseBranches.data;
-    return [repoInfo, repoContributors, pullsInfo, branchesInfo];
+    return [
+      responseInfo.data,
+      responseContributors.data,
+      responsePulls.data,
+      responseBranches.data,
+      responseIssueC.data,
+      responsePullC.data,
+    ];
   }
 }
 
@@ -57,10 +78,12 @@ const repos = options.repo.split(",");
 
 const csv = [
   "name",
-  "pr",
+  "open_pr",
+  "closed_pr",
   "forks",
   "stars",
   "open_issues",
+  "closed_issues",
   "language",
   "license",
   "contributors",
@@ -72,8 +95,15 @@ const fileName = Date.now().toString() + ".csv";
 fs.writeFileSync(fileName, csv);
 repos.forEach((repoListed) => {
   const repo = repoListed.split("https://github.com/")[1];
-  getRepo(repo)
-    .then(([repoInfo, repoContributors, pullsInfo, branchesInfo]) => {
+  getRepo(repo).then(
+    ([
+      repoInfo,
+      repoContributors,
+      pullsInfo,
+      branchesInfo,
+      closedIssues,
+      closedPulls,
+    ]) => {
       if (options.verbose) {
         console.log("Repository: " + repoInfo.name);
         console.log(
@@ -105,9 +135,11 @@ repos.forEach((repoListed) => {
         console.log("Stars: " + repoInfo.stargazers_count);
         //Separate PR from Issues
         console.log("Open PR: " + pullsInfo.length);
+        console.log("Closed PR: " + closedPulls.total_count);
         console.log(
           "Open Issues: " + (repoInfo.open_issues - pullsInfo.length)
         );
+        console.log("Closed Issues: " + closedIssues.total_count);
         //Show contributors
         console.log("Contributors: " + repoContributors.length);
         //Show branches
@@ -123,9 +155,11 @@ repos.forEach((repoListed) => {
         [
           repoInfo.name,
           pullsInfo.length,
+          closedPulls.total_count,
           repoInfo.forks,
           repoInfo.stargazers_count,
           repoInfo.open_issues - pullsInfo.length,
+          closedIssues.total_count,
           repoInfo.language,
           licenseName,
           repoContributors.length,
@@ -134,9 +168,6 @@ repos.forEach((repoListed) => {
           repoInfo.pushed_at.split("T")[0],
         ].join(",");
       fs.appendFileSync(fileName, row);
-    })
-
-    .catch((error) => {
-      console.log("[FETCHING ERROR]:Getting stats from: " + repo + error);
-    });
+    }
+  );
 });
