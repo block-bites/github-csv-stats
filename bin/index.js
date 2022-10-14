@@ -114,85 +114,88 @@ const csv = [
 ].join(",");
 const fileName = Date.now().toString() + ".csv";
 fs.writeFileSync(fileName, csv);
-repos.forEach((repoListed) => {
-  const repo = repoListed.split("https://github.com/")[1];
-  getRepo(repo)
-    .then(
-      ([
-        repoInfo,
-        repoContributors,
-        pullsInfo,
-        branchesInfo,
-        closedIssues,
-        closedPulls,
-      ]) => {
-        if (options.verbose) {
-          console.log("Repository: " + repoInfo.name);
-          console.log(
-            "Created: " +
-              repoInfo.created_at.split("T")[0] +
-              " at " +
-              repoInfo.created_at.split("T")[1].split("Z")[0]
-          );
-          console.log(
-            "Updated: " +
-              repoInfo.updated_at.split("T")[0] +
-              " at " +
-              repoInfo.updated_at.split("T")[1].split("Z")[0]
-          );
-          console.log(
-            "Pushed: " +
-              repoInfo.pushed_at.split("T")[0] +
-              " at " +
-              repoInfo.pushed_at.split("T")[1].split("Z")[0]
-          );
-          console.log("Dominant Language: " + repoInfo.language);
 
-          if (repoInfo.license !== null) {
-            console.log("License: " + repoInfo.license.name);
-          } else {
-            console.log("No License");
+repos.forEach((repoListed, index) => {
+  const repo = repoListed.split("https://github.com/")[1];
+  setTimeout(function () {
+    getRepo(repo)
+      .then(
+        ([
+          repoInfo,
+          repoContributors,
+          pullsInfo,
+          branchesInfo,
+          closedIssues,
+          closedPulls,
+        ]) => {
+          if (options.verbose) {
+            console.log("Repository: " + repoInfo.name);
+            console.log(
+              "Created: " +
+                repoInfo.created_at.split("T")[0] +
+                " at " +
+                repoInfo.created_at.split("T")[1].split("Z")[0]
+            );
+            console.log(
+              "Updated: " +
+                repoInfo.updated_at.split("T")[0] +
+                " at " +
+                repoInfo.updated_at.split("T")[1].split("Z")[0]
+            );
+            console.log(
+              "Pushed: " +
+                repoInfo.pushed_at.split("T")[0] +
+                " at " +
+                repoInfo.pushed_at.split("T")[1].split("Z")[0]
+            );
+            console.log("Dominant Language: " + repoInfo.language);
+
+            if (repoInfo.license !== null) {
+              console.log("License: " + repoInfo.license.name);
+            } else {
+              console.log("No License");
+            }
+            console.log("Forks: " + repoInfo.forks);
+            console.log("Stars: " + repoInfo.stargazers_count);
+            //Separate PR from Issues
+            console.log("Open PR: " + pullsInfo.length);
+            console.log("Closed PR: " + closedPulls.total_count);
+            console.log(
+              "Open Issues: " + (repoInfo.open_issues - pullsInfo.length)
+            );
+            console.log("Closed Issues: " + closedIssues.total_count);
+            //Show contributors
+            console.log("Contributors: " + repoContributors.length);
+            //Show branches
+            console.log("Branches: " + branchesInfo.length);
           }
-          console.log("Forks: " + repoInfo.forks);
-          console.log("Stars: " + repoInfo.stargazers_count);
-          //Separate PR from Issues
-          console.log("Open PR: " + pullsInfo.length);
-          console.log("Closed PR: " + closedPulls.total_count);
-          console.log(
-            "Open Issues: " + (repoInfo.open_issues - pullsInfo.length)
-          );
-          console.log("Closed Issues: " + closedIssues.total_count);
-          //Show contributors
-          console.log("Contributors: " + repoContributors.length);
-          //Show branches
-          console.log("Branches: " + branchesInfo.length);
+          //create csv
+          let licenseName = "No License";
+          if (repoInfo.license !== null) {
+            licenseName = repoInfo.license.name;
+          }
+          const row =
+            "\r\n" +
+            [
+              repoInfo.name,
+              pullsInfo.length,
+              closedPulls.total_count,
+              repoInfo.forks,
+              repoInfo.stargazers_count,
+              repoInfo.open_issues - pullsInfo.length,
+              closedIssues.total_count,
+              repoInfo.language,
+              licenseName,
+              repoContributors.length,
+              repoInfo.created_at.split("T")[0],
+              repoInfo.updated_at.split("T")[0],
+              repoInfo.pushed_at.split("T")[0],
+            ].join(",");
+          fs.appendFileSync(fileName, row);
         }
-        //create csv
-        let licenseName = "No License";
-        if (repoInfo.license !== null) {
-          licenseName = repoInfo.license.name;
-        }
-        const row =
-          "\r\n" +
-          [
-            repoInfo.name,
-            pullsInfo.length,
-            closedPulls.total_count,
-            repoInfo.forks,
-            repoInfo.stargazers_count,
-            repoInfo.open_issues - pullsInfo.length,
-            closedIssues.total_count,
-            repoInfo.language,
-            licenseName,
-            repoContributors.length,
-            repoInfo.created_at.split("T")[0],
-            repoInfo.updated_at.split("T")[0],
-            repoInfo.pushed_at.split("T")[0],
-          ].join(",");
-        fs.appendFileSync(fileName, row);
-      }
-    )
-    .catch((error) => {
-      console.log(`[ERROR]: Repo ${repo} not analysed -> ${error}`);
-    });
+      )
+      .catch((error) => {
+        console.log(`[ERROR]: Repo ${repo} not analysed -> ${error}`);
+      });
+  }, index * 6000);
 });
