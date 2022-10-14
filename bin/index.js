@@ -91,7 +91,12 @@ if (options.repo !== "" && options.repo !== undefined) {
 } else if (options.repoFile !== "" && options.repoFile !== undefined) {
   //Get info from file
   var text = fs.readFileSync(options.repoFile, "utf8");
-  repos = text.toString().split(",");
+  repos = text
+    .toString()
+    .split(",")
+    .map((item) =>
+      item.replace("\r\n", "").replace("\n", "").replace("\r", "").trim()
+    );
 } else {
   console.log("Needed repo to analyse");
   process.exit();
