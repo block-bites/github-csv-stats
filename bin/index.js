@@ -193,6 +193,6 @@ repos.forEach((repoListed) => {
       }
     )
     .catch((error) => {
-      LogError(`[ERROR]: Repo ${repo} not analysed -> ${error}`);
+      console.log(`[ERROR]: Repo ${repo} not analysed -> ${error}`);
     });
 });
