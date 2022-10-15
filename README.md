@@ -46,4 +46,4 @@ or
 
 ---
 
-*Proudly created by (BlockBites)[https://blockbit.es]!*
+*Proudly created by [BlockBites](https://blockbit.es)!*
