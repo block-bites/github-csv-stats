@@ -202,7 +202,13 @@ repos.forEach((repoListed, index) => {
         }
       )
       .catch((error) => {
-        console.log(`[ERROR]: Repo ${repo} not analysed -> ${error}`);
+        if (error instanceof TypeError) {
+          console.log(
+            `[ERROR]: Repo ${repoListed} not analysed -> TypeError: Incorrect Github Repo URL`
+          );
+        } else {
+          console.log(`[ERROR]: Repo ${repoListed} not analysed -> ${error}`);
+        }
       });
-  }, index * 6000);
+  }, index * 4500);
 });
