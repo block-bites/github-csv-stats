@@ -3,6 +3,7 @@ const { Octokit } = require("@octokit/rest");
 const dotenv = require("dotenv");
 const yargs = require("yargs");
 const fs = require("fs");
+const fetch = require("node-fetch");
 
 const options = yargs
   .usage(
@@ -44,43 +45,63 @@ const octokit = new Octokit({
 async function getRepo(ownerRepo) {
   const owner = ownerRepo.split("/")[0];
   const repo = ownerRepo.split("/")[1];
-  const [
-    responseInfo,
-    responseContributors,
-    responsePulls,
-    responseBranches,
-    responseIssueC,
-    responsePullC,
-  ] = await Promise.all([
-    octokit.rest.repos.get({ owner, repo }),
+  const [responseInfo, responseContributors] = await Promise.all([
+    fetch("https://api.github.com/graphql", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token,
+      },
+      body: JSON.stringify({
+        query: `
+        query {closed_issues:search(query: "repo:${ownerRepo} is:issue is:closed ", type: ISSUE, first: 0) {
+    issueCount
+    
+  }
+  open_issues:search(query: "repo:${ownerRepo} is:issue is:open ", type: ISSUE, first: 0) {
+    issueCount
+  }
+  closed_pr:search(query: "repo:${ownerRepo} is:pr is:closed ", type:ISSUE , first: 0) {
+    issueCount
+  }
+  repo_info:repositoryOwner(login: "${owner}") {
+    repository(name: "${repo}") {
+      name
+      pullRequests(states: OPEN) {
+        totalCount
+      }
+      forks {
+        totalCount
+      }
+      stargazers {
+        totalCount
+      }
+      refs(refPrefix: "refs/heads/", first: 1) {
+          totalCount
+      }
+      languages(first:1){
+          nodes{
+              name
+          }
+      }
+      licenseInfo{
+          name
+      }
+      createdAt
+      updatedAt
+      pushedAt
+    }
+  }
+  }
+  
+      `,
+      }),
+    }),
     octokit.rest.repos.listContributors({ owner, repo, per_page: 100 }),
-    octokit.rest.pulls.list({ owner, repo, per_page: 100 }),
-    octokit.rest.repos.listBranches({ owner, repo, per_page: 100 }),
-    octokit.rest.search.issuesAndPullRequests({
-      q: 'is:issue+repo:"' + ownerRepo + '"+is:closed',
-      per_page: 1,
-    }),
-    octokit.rest.search.issuesAndPullRequests({
-      q: 'is:pr+repo:"' + ownerRepo + '"+is:closed',
-      per_page: 1,
-    }),
   ]);
-  if (
-    responseInfo.status === 200 &&
-    responseContributors.status === 200 &&
-    responsePulls.status === 200 &&
-    responseBranches.status === 200 &&
-    responseIssueC.status === 200 &&
-    responsePullC.status === 200
-  ) {
-    return [
-      responseInfo.data,
-      responseContributors.data,
-      responsePulls.data,
-      responseBranches.data,
-      responseIssueC.data,
-      responsePullC.data,
-    ];
+  if (responseInfo.status === 200 && responseContributors.status === 200) {
+    const repoInfo = await responseInfo.json();
+    return [repoInfo.data, responseContributors.data];
   }
 }
 
@@ -121,94 +142,94 @@ const csv = [
 const fileName = Date.now().toString() + ".csv";
 fs.writeFileSync(fileName, csv);
 
-repos.forEach((repoListed, index) => {
+repos.forEach((repoListed) => {
   const repo = repoListed.split("https://github.com/")[1];
-  setTimeout(function () {
-    getRepo(repo)
-      .then(
-        ([
-          repoInfo,
-          repoContributors,
-          pullsInfo,
-          branchesInfo,
-          closedIssues,
-          closedPulls,
-        ]) => {
-          if (options.verbose) {
-            console.log("Repository: " + repoInfo.name);
-            console.log(
-              "Created: " +
-                repoInfo.created_at.split("T")[0] +
-                " at " +
-                repoInfo.created_at.split("T")[1].split("Z")[0]
-            );
-            console.log(
-              "Updated: " +
-                repoInfo.updated_at.split("T")[0] +
-                " at " +
-                repoInfo.updated_at.split("T")[1].split("Z")[0]
-            );
-            console.log(
-              "Pushed: " +
-                repoInfo.pushed_at.split("T")[0] +
-                " at " +
-                repoInfo.pushed_at.split("T")[1].split("Z")[0]
-            );
-            console.log("Dominant Language: " + repoInfo.language);
+  getRepo(repo)
+    .then(([repoInfo, repoContributors]) => {
+      const name = repoInfo.repo_info.repository.name;
+      const open_pr = repoInfo.repo_info.repository.pullRequests.totalCount;
+      const closed_pr = repoInfo.closed_pr.issueCount;
+      const forks = repoInfo.repo_info.repository.forks.totalCount;
+      const branches = repoInfo.repo_info.repository.refs.totalCount;
+      const stars = repoInfo.repo_info.repository.stargazers.totalCount;
+      const open_issues = repoInfo.open_issues.issueCount;
+      const closed_issues = repoInfo.open_issues.issueCount;
+      const contributors = repoContributors.length;
+      const language = repoInfo.repo_info.repository.language;
+      let license = "No License";
+      if (repoInfo.repo_info.repository.licenseInfo !== null) {
+        license = repoInfo.repo_info.repository.licenseInfo.name;
+      }
+      const created = repoInfo.repo_info.repository.createdAt.split("T")[0];
+      const updated = repoInfo.repo_info.repository.updatedAt.split("T")[0];
+      const pushed = repoInfo.repo_info.repository.pushedAt.split("T")[0];
 
-            if (repoInfo.license !== null) {
-              console.log("License: " + repoInfo.license.name);
-            } else {
-              console.log("No License");
-            }
-            console.log("Forks: " + repoInfo.forks);
-            console.log("Stars: " + repoInfo.stargazers_count);
-            //Separate PR from Issues
-            console.log("Open PR: " + pullsInfo.length);
-            console.log("Closed PR: " + closedPulls.total_count);
-            console.log(
-              "Open Issues: " + (repoInfo.open_issues - pullsInfo.length)
-            );
-            console.log("Closed Issues: " + closedIssues.total_count);
-            //Show contributors
-            console.log("Contributors: " + repoContributors.length);
-            //Show branches
-            console.log("Branches: " + branchesInfo.length);
-          }
-          //create csv
-          let licenseName = "No License";
-          if (repoInfo.license !== null) {
-            licenseName = repoInfo.license.name;
-          }
-          const row =
-            "\r\n" +
-            [
-              repoInfo.name,
-              pullsInfo.length,
-              closedPulls.total_count,
-              repoInfo.forks,
-              branchesInfo.length,
-              repoInfo.stargazers_count,
-              repoInfo.open_issues - pullsInfo.length,
-              closedIssues.total_count,
-              repoContributors.length,
-              repoInfo.language,
-              licenseName,
-              repoInfo.created_at.split("T")[0],
-              repoInfo.updated_at.split("T")[0],
-              repoInfo.pushed_at.split("T")[0],
-            ].join(",");
-          fs.appendFileSync(fileName, row);
-        }
-      )
-      .catch((error) => {
-        if (error instanceof TypeError) {
-          console.log(
-            `[ERROR]: Repo ${repoListed} not analysed -> TypeError: Incorrect Github Repo URL`
-          );
-        } else {
-          console.log(`[ERROR]: Repo ${repoListed} not analysed -> ${error}`);
-        }
-      });
-  }, index * 4500);
+      if (options.verbose) {
+        console.log("//////////////////////////////////");
+        console.log("Repository: " + name);
+        console.log(
+          "Created: " +
+            created +
+            " at " +
+            repoInfo.repo_info.repository.createdAt.split("T")[1].split("Z")[0]
+        );
+        console.log(
+          "Updated: " +
+            updated +
+            " at " +
+            repoInfo.repo_info.repository.updatedAt.split("T")[1].split("Z")[0]
+        );
+        console.log(
+          "Pushed: " +
+            pushed +
+            " at " +
+            repoInfo.repo_info.repository.pushedAt.split("T")[1].split("Z")[0]
+        );
+        console.log("Dominant Language: " + language);
+
+        console.log("License: " + license);
+
+        console.log("Forks: " + forks);
+        console.log("Stars: " + stars);
+        //Separate PR from Issues
+        console.log("Open PR: " + open_pr);
+        console.log("Closed PR: " + closed_pr);
+        console.log("Open Issues: " + open_issues);
+        console.log("Closed Issues: " + closed_issues);
+        //Show contributors
+        console.log("Contributors: " + contributors);
+        //Show branches
+        console.log("Branches: " + branches);
+      }
+      //create csv
+
+      const row =
+        "\r\n" +
+        [
+          name,
+          open_pr,
+          closed_pr,
+          forks,
+          branches,
+          stars,
+          open_issues,
+          closed_issues,
+          contributors,
+          language,
+          license,
+          created,
+          updated,
+          pushed,
+        ].join(",");
+      fs.appendFileSync(fileName, row);
+    })
+    .catch((error) => {
+      if (error instanceof TypeError) {
+        console.log(
+          `[ERROR]: Repo ${repoListed} not analysed -> TypeError: Incorrect Github Repo URL`
+        );
+      } else {
+        console.log(`[ERROR]: Repo ${repoListed} not analysed -> ${error}`);
+      }
+    });
 });
