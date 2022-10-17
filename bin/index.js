@@ -92,6 +92,20 @@ async function getRepo(ownerRepo) {
                 createdAt
                 updatedAt
                 pushedAt
+                commits_main:object(expression:"main") {
+                  ... on Commit {
+                    history {
+                      totalCount
+                    }
+                  }
+                }
+                commits_master:object(expression:"master") {
+                  ... on Commit {
+                    history {
+                      totalCount
+                    }
+                  }
+                 }
               }
             }
           }  
@@ -134,6 +148,7 @@ const csv = [
   "open_issues",
   "closed_issues",
   "contributors",
+  "commits",
   "language",
   "license",
   "created",
@@ -157,6 +172,13 @@ repos.forEach((repoListed) => {
       const stars = repoInfo.repo_info.repository.stargazers.totalCount;
       const open_issues = repoInfo.open_issues.issueCount;
       const closed_issues = repoInfo.open_issues.issueCount;
+      let commits = 0;
+      if (repoInfo.repo_info.repository.commits_main !== null) {
+        commits = repoInfo.repo_info.repository.commits_main.history.totalCount;
+      } else {
+        commits =
+          repoInfo.repo_info.repository.commits_master.history.totalCount;
+      }
       const contributors = repoContributors.length;
       let language = "Unknown";
       if (repoInfo.repo_info.repository.languages.nodes.length > 0) {
@@ -201,6 +223,7 @@ repos.forEach((repoListed) => {
         console.log("Open Issues: " + open_issues);
         console.log("Closed Issues: " + closed_issues);
         console.log("Contributors: " + contributors);
+        console.log("Commits: " + commits);
         console.log("Branches: " + branches);
       }
 
@@ -217,6 +240,7 @@ repos.forEach((repoListed) => {
           open_issues,
           closed_issues,
           contributors,
+          commits,
           language,
           license,
           created,
