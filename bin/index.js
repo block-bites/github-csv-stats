@@ -5,6 +5,7 @@ const yargs = require("yargs");
 const fs = require("fs");
 const fetch = require("node-fetch");
 
+// Configuration of possible arguments
 const options = yargs
   .usage(
     "Usage: \r\n-r <URLs of all the repositories to analyse. Comma separated.> \r\n -f <File with URLs of all the repositories to analyse. Comma separated.>"
@@ -28,7 +29,7 @@ const options = yargs
     demandOption: false,
   }).argv;
 
-// Configuration the .env file
+// Configuration of the .env file
 dotenv.config();
 const token = process.env.TOKEN || "";
 if (token === "") {
@@ -42,6 +43,7 @@ const octokit = new Octokit({
   auth: token,
 });
 
+// Fetch info from Github API. Using Octokit to get contributors and GraphQL for all the rest of information
 async function getRepo(ownerRepo) {
   const owner = ownerRepo.split("/")[0];
   const repo = ownerRepo.split("/")[1];
@@ -54,46 +56,45 @@ async function getRepo(ownerRepo) {
       },
       body: JSON.stringify({
         query: `
-        query {closed_issues:search(query: "repo:${ownerRepo} is:issue is:closed ", type: ISSUE, first: 0) {
-    issueCount
-    
-  }
-  open_issues:search(query: "repo:${ownerRepo} is:issue is:open ", type: ISSUE, first: 0) {
-    issueCount
-  }
-  closed_pr:search(query: "repo:${ownerRepo} is:pr is:closed ", type:ISSUE , first: 0) {
-    issueCount
-  }
-  repo_info:repositoryOwner(login: "${owner}") {
-    repository(name: "${repo}") {
-      name
-      pullRequests(states: OPEN) {
-        totalCount
-      }
-      forks {
-        totalCount
-      }
-      stargazers {
-        totalCount
-      }
-      refs(refPrefix: "refs/heads/", first: 1) {
-          totalCount
-      }
-      languages(first:1){
-          nodes{
-              name
-          }
-      }
-      licenseInfo{
-          name
-      }
-      createdAt
-      updatedAt
-      pushedAt
-    }
-  }
-  }
-  
+          query {
+            closed_issues:search(query: "repo:${ownerRepo} is:issue is:closed ", type: ISSUE, first: 0) {
+              issueCount
+            }
+            open_issues:search(query: "repo:${ownerRepo} is:issue is:open ", type: ISSUE, first: 0) {
+              issueCount
+            }
+            closed_pr:search(query: "repo:${ownerRepo} is:pr is:closed ", type:ISSUE , first: 0) {
+              issueCount
+            }
+            repo_info:repositoryOwner(login: "${owner}") {
+              repository(name: "${repo}") {
+                name
+                pullRequests(states: OPEN) {
+                  totalCount
+                }
+                forks {
+                  totalCount
+                }
+                stargazers {
+                  totalCount
+                }
+                refs(refPrefix: "refs/heads/", first: 1) {
+                  totalCount
+                }
+                languages(first:1){
+                  nodes{
+                    name
+                  }
+                }
+                licenseInfo{
+                  name
+                }
+                createdAt
+                updatedAt
+                pushedAt
+              }
+            }
+          }  
       `,
       }),
     }),
@@ -105,12 +106,11 @@ async function getRepo(ownerRepo) {
   }
 }
 
-//Get args
+//Get args introduced on the terminal
 let repos = "";
 if (options.repo !== "" && options.repo !== undefined) {
   repos = options.repo.split(",");
 } else if (options.repoFile !== "" && options.repoFile !== undefined) {
-  //Get info from file
   var text = fs.readFileSync(options.repoFile, "utf8");
   repos = text
     .toString()
@@ -123,6 +123,7 @@ if (options.repo !== "" && options.repo !== undefined) {
   process.exit();
 }
 
+// Create the CSV file and fill the titles
 const csv = [
   "name",
   "open_pr",
@@ -142,10 +143,12 @@ const csv = [
 const fileName = Date.now().toString() + ".csv";
 fs.writeFileSync(fileName, csv);
 
+//Analyse each repo
 repos.forEach((repoListed) => {
   const repo = repoListed.split("https://github.com/")[1];
   getRepo(repo)
     .then(([repoInfo, repoContributors]) => {
+      //Parse all data fetched
       const name = repoInfo.repo_info.repository.name;
       const open_pr = repoInfo.repo_info.repository.pullRequests.totalCount;
       const closed_pr = repoInfo.closed_pr.issueCount;
@@ -155,7 +158,10 @@ repos.forEach((repoListed) => {
       const open_issues = repoInfo.open_issues.issueCount;
       const closed_issues = repoInfo.open_issues.issueCount;
       const contributors = repoContributors.length;
-      const language = repoInfo.repo_info.repository.language;
+      let language = "Unknown";
+      if (repoInfo.repo_info.repository.languages.nodes.length > 0) {
+        language = repoInfo.repo_info.repository.languages.nodes[0].name;
+      }
       let license = "No License";
       if (repoInfo.repo_info.repository.licenseInfo !== null) {
         license = repoInfo.repo_info.repository.licenseInfo.name;
@@ -164,6 +170,7 @@ repos.forEach((repoListed) => {
       const updated = repoInfo.repo_info.repository.updatedAt.split("T")[0];
       const pushed = repoInfo.repo_info.repository.pushedAt.split("T")[0];
 
+      //Show information on terminal if verbose
       if (options.verbose) {
         console.log("//////////////////////////////////");
         console.log("Repository: " + name);
@@ -186,23 +193,18 @@ repos.forEach((repoListed) => {
             repoInfo.repo_info.repository.pushedAt.split("T")[1].split("Z")[0]
         );
         console.log("Dominant Language: " + language);
-
         console.log("License: " + license);
-
         console.log("Forks: " + forks);
         console.log("Stars: " + stars);
-        //Separate PR from Issues
         console.log("Open PR: " + open_pr);
         console.log("Closed PR: " + closed_pr);
         console.log("Open Issues: " + open_issues);
         console.log("Closed Issues: " + closed_issues);
-        //Show contributors
         console.log("Contributors: " + contributors);
-        //Show branches
         console.log("Branches: " + branches);
       }
-      //create csv
 
+      //Add the information of the repo to the CSV file
       const row =
         "\r\n" +
         [
