@@ -78,6 +78,9 @@ async function getRepo(ownerRepo) {
                 stargazers {
                   totalCount
                 }
+                watchers{
+                  totalCount
+                }
                 refs(refPrefix: "refs/heads/", first: 1) {
                   totalCount
                 }
@@ -145,6 +148,7 @@ const csv = [
   "forks",
   "branches",
   "stars",
+  "watchers",
   "open_issues",
   "closed_issues",
   "contributors",
@@ -170,6 +174,7 @@ repos.forEach((repoListed) => {
       const forks = repoInfo.repo_info.repository.forks.totalCount;
       const branches = repoInfo.repo_info.repository.refs.totalCount;
       const stars = repoInfo.repo_info.repository.stargazers.totalCount;
+      const watchers = repoInfo.repo_info.repository.watchers.totalCount;
       const open_issues = repoInfo.open_issues.issueCount;
       const closed_issues = repoInfo.open_issues.issueCount;
       let commits = 0;
@@ -218,6 +223,7 @@ repos.forEach((repoListed) => {
         console.log("License: " + license);
         console.log("Forks: " + forks);
         console.log("Stars: " + stars);
+        console.log("Watchers: " + watchers);
         console.log("Open PR: " + open_pr);
         console.log("Closed PR: " + closed_pr);
         console.log("Open Issues: " + open_issues);
@@ -237,6 +243,7 @@ repos.forEach((repoListed) => {
           forks,
           branches,
           stars,
+          watchers,
           open_issues,
           closed_issues,
           contributors,
